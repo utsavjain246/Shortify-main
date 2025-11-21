@@ -1,60 +1,17 @@
+version: '3.8'
+
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: shortify-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-shortify_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shortify_pass}
-      POSTGRES_DB: ${POSTGRES_DB:-shortify_db}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./services/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shortify_user}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - shortify-network
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: shortify-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - shortify-network
-
   # Auth Service
   auth-service:
     build:
       context: ./services/auth-service
       dockerfile: Dockerfile
-    container_name: shortify-auth-service
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-shortify_user}:${POSTGRES_PASSWORD:-shortify_pass}@postgres:5432/${POSTGRES_DB:-shortify_db}
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
       - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-    ports:
-      - "8003:8003"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - shortify-network
     restart: unless-stopped
 
   # URL Service
@@ -62,19 +19,9 @@ services:
     build:
       context: ./services/url-service
       dockerfile: Dockerfile
-    container_name: shortify-url-service
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-shortify_user}:${POSTGRES_PASSWORD:-shortify_pass}@postgres:5432/${POSTGRES_DB:-shortify_db}
-      - REDIS_URL=redis://redis:6379/0
-    ports:
-      - "8001:8001"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - shortify-network
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
     restart: unless-stopped
 
   # Analytics Service
@@ -82,19 +29,9 @@ services:
     build:
       context: ./services/analytics-service
       dockerfile: Dockerfile
-    container_name: shortify-analytics-service
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-shortify_user}:${POSTGRES_PASSWORD:-shortify_pass}@postgres:5432/${POSTGRES_DB:-shortify_db}
-      - REDIS_URL=redis://redis:6379/0
-    ports:
-      - "8002:8002"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - shortify-network
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
     restart: unless-stopped
 
   # API Gateway
@@ -102,7 +39,6 @@ services:
     build:
       context: ./services/api-gateway
       dockerfile: Dockerfile
-    container_name: shortify-api-gateway
     environment:
       - AUTH_SERVICE_URL=http://auth-service:8003
       - URL_SERVICE_URL=http://url-service:8001
@@ -114,8 +50,6 @@ services:
       - auth-service
       - url-service
       - analytics-service
-    networks:
-      - shortify-network
     restart: unless-stopped
 
   # Frontend
@@ -123,21 +57,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: shortify-frontend
-    environment:
-      - VITE_API_URL=http://localhost:8000
+      args:
+        VITE_API_URL: ${VITE_API_URL}
     ports:
       - "3000:80"
     depends_on:
       - api-gateway
-    networks:
-      - shortify-network
     restart: unless-stopped
-
-volumes:
-  postgres_data:
-    driver: local
-
-networks:
-  shortify-network:
-    driver: bridge
