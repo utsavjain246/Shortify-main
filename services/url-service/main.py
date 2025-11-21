@@ -1,6 +1,7 @@
 """
 URL Service - Handles URL shortening, retrieval, and QR code generation
 """
+
 import random
 import string
 import io
@@ -14,7 +15,16 @@ from fastapi import FastAPI, HTTPException, status, Depends
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, select, update, BigInteger
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    select,
+    update,
+    BigInteger,
+)
 from sqlalchemy.exc import IntegrityError
 import qrcode
 import redis.asyncio as redis
@@ -24,6 +34,7 @@ import asyncio
 from sqlalchemy import text
 
 app = FastAPI(title="URL Service", version="1.0.0")
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -43,12 +54,14 @@ async def startup_event():
             retries -= 1
             print(f"Database connection failed ({e}), retrying... ({retries} left)")
             await asyncio.sleep(5)
-    
+
     raise RuntimeError("Could not connect to database after 5 minutes")
 
 
 # Configuration
-DATABASE_URL = os.getenv("DATABASE_URL").replace("postgresql://", "postgresql+asyncpg://")
+DATABASE_URL = os.getenv("DATABASE_URL").replace(
+    "postgresql://", "postgresql+asyncpg://"
+)
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
@@ -80,10 +93,10 @@ class URL(Base):
 
 class Analytics(Base):
     __tablename__ = "analytics"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     url_id = Column(Integer, index=True)
-    # We only need the model definition for joins if needed, 
+    # We only need the model definition for joins if needed,
     # but analytics service handles the actual analytics data.
     # Keeping it minimal here to avoid circular deps if we were to share models.
 
@@ -128,7 +141,7 @@ async def get_db():
 def generate_short_code(length: int = 6) -> str:
     """Generate random short code"""
     characters = string.ascii_letters + string.digits
-    return ''.join(random.choices(characters, k=length))
+    return "".join(random.choices(characters, k=length))
 
 
 def _generate_qr_code_sync(url: str) -> Optional[str]:
@@ -147,9 +160,9 @@ def _generate_qr_code_sync(url: str) -> Optional[str]:
 
         # Convert to base64
         buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
+        img.save(buffer, format="PNG")
         buffer.seek(0)
-        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         return f"data:image/png;base64,{img_base64}"
     except Exception as e:
@@ -199,28 +212,28 @@ async def root():
 async def shorten_url(url_data: URLCreate, db: AsyncSession = Depends(get_db)):
     """Create a shortened URL"""
     short_code = None
-    
+
     # Check if custom alias is provided
     if url_data.custom_alias:
         short_code = url_data.custom_alias
         # Validate custom alias
-        if not short_code.replace('_', '').replace('-', '').isalnum():
+        if not short_code.replace("_", "").replace("-", "").isalnum():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Custom alias must contain only letters, numbers, hyphens, and underscores"
+                detail="Custom alias must contain only letters, numbers, hyphens, and underscores",
             )
         if len(short_code) < 3 or len(short_code) > 20:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Custom alias must be between 3 and 20 characters"
+                detail="Custom alias must be between 3 and 20 characters",
             )
-        
+
         # Try to insert with custom alias
         new_url = URL(
             original_url=str(url_data.original_url),
             short_code=short_code,
             user_id=url_data.user_id,
-            custom_alias=True
+            custom_alias=True,
         )
         db.add(new_url)
         try:
@@ -229,7 +242,7 @@ async def shorten_url(url_data: URLCreate, db: AsyncSession = Depends(get_db)):
             await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="This custom alias is already taken"
+                detail="This custom alias is already taken",
             )
     else:
         # Generate unique short code
@@ -240,7 +253,7 @@ async def shorten_url(url_data: URLCreate, db: AsyncSession = Depends(get_db)):
                 original_url=str(url_data.original_url),
                 short_code=short_code,
                 user_id=url_data.user_id,
-                custom_alias=False
+                custom_alias=False,
             )
             db.add(new_url)
             try:
@@ -252,7 +265,7 @@ async def shorten_url(url_data: URLCreate, db: AsyncSession = Depends(get_db)):
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to generate unique short code"
+                detail="Failed to generate unique short code",
             )
 
     await db.refresh(new_url)
@@ -272,7 +285,7 @@ async def shorten_url(url_data: URLCreate, db: AsyncSession = Depends(get_db)):
         qr_code=qr_code,
         created_at=new_url.created_at,
         expires_at=new_url.expires_at,
-        is_active=new_url.is_active
+        is_active=new_url.is_active,
     )
 
 
@@ -291,20 +304,18 @@ async def get_original_url(short_code: str, db: AsyncSession = Depends(get_db)):
 
     if not url_data:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Short URL not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Short URL not found"
         )
 
     if not url_data.is_active:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail="This short URL has been deactivated"
+            detail="This short URL has been deactivated",
         )
 
     if url_data.expires_at and url_data.expires_at < datetime.utcnow():
         raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="This short URL has expired"
+            status_code=status.HTTP_410_GONE, detail="This short URL has expired"
         )
 
     # Cache the URL
@@ -314,15 +325,18 @@ async def get_original_url(short_code: str, db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/urls/user/{user_id}", response_model=List[URLStats])
-async def get_user_urls(user_id: int, skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def get_user_urls(
+    user_id: int, skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)
+):
     """Get all URLs created by a user"""
     # Note: This query is a bit complex because it involves a join with analytics.
     # For simplicity in this refactor, we will do a raw SQL query via SQLAlchemy text
-    # or we can define the Analytics model properly. 
+    # or we can define the Analytics model properly.
     # Let's use raw SQL for the join to ensure we match the original logic but async.
     from sqlalchemy import text
-    
-    query = text("""
+
+    query = text(
+        """
         SELECT
             u.id,
             u.original_url,
@@ -336,8 +350,9 @@ async def get_user_urls(user_id: int, skip: int = 0, limit: int = 100, db: Async
         GROUP BY u.id
         ORDER BY u.created_at DESC
         LIMIT :limit OFFSET :skip
-    """)
-    
+    """
+    )
+
     result = await db.execute(query, {"user_id": user_id, "limit": limit, "skip": skip})
     urls = result.fetchall()
 
@@ -349,27 +364,29 @@ async def get_user_urls(user_id: int, skip: int = 0, limit: int = 100, db: Async
             full_short_url=f"{BASE_URL}/{row.short_code}",
             total_clicks=row.total_clicks,
             created_at=row.created_at,
-            is_active=row.is_active
+            is_active=row.is_active,
         )
         for row in urls
     ]
 
 
 @app.delete("/{short_code}")
-async def delete_url(short_code: str, user_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+async def delete_url(
+    short_code: str, user_id: Optional[int] = None, db: AsyncSession = Depends(get_db)
+):
     """Delete/deactivate a URL"""
     # Check ownership if user_id provided
     query = select(URL).where(URL.short_code == short_code)
     if user_id:
         query = query.where(URL.user_id == user_id)
-    
+
     result = await db.execute(query)
     url_data = result.scalar_one_or_none()
 
     if not url_data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Short URL not found or you don't have permission"
+            detail="Short URL not found or you don't have permission",
         )
 
     # Deactivate URL instead of deleting
@@ -386,8 +403,9 @@ async def delete_url(short_code: str, user_id: Optional[int] = None, db: AsyncSe
 async def get_url_stats(short_code: str, db: AsyncSession = Depends(get_db)):
     """Get statistics for a specific URL"""
     from sqlalchemy import text
-    
-    query = text("""
+
+    query = text(
+        """
         SELECT
             u.id,
             u.original_url,
@@ -399,15 +417,15 @@ async def get_url_stats(short_code: str, db: AsyncSession = Depends(get_db)):
         LEFT JOIN analytics a ON u.id = a.url_id
         WHERE u.short_code = :short_code
         GROUP BY u.id
-    """)
-    
+    """
+    )
+
     result = await db.execute(query, {"short_code": short_code})
     url_data = result.fetchone()
 
     if not url_data:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Short URL not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Short URL not found"
         )
 
     return URLStats(
@@ -417,10 +435,11 @@ async def get_url_stats(short_code: str, db: AsyncSession = Depends(get_db)):
         full_short_url=f"{BASE_URL}/{url_data.short_code}",
         total_clicks=url_data.total_clicks,
         created_at=url_data.created_at,
-        is_active=url_data.is_active
+        is_active=url_data.is_active,
     )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)

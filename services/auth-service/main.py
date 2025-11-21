@@ -1,6 +1,7 @@
 """
 Auth Service - Handles user authentication and JWT token management
 """
+
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -18,6 +19,7 @@ import asyncio
 from sqlalchemy import text
 
 app = FastAPI(title="Auth Service", version="1.0.0")
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -37,7 +39,7 @@ async def startup_event():
             retries -= 1
             print(f"Database connection failed ({e}), retrying... ({retries} left)")
             await asyncio.sleep(5)
-    
+
     raise RuntimeError("Could not connect to database after 5 minutes")
 
 
@@ -46,7 +48,9 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 # Ensure DATABASE_URL is async
-DATABASE_URL = os.getenv("DATABASE_URL").replace("postgresql://", "postgresql+asyncpg://")
+DATABASE_URL = os.getenv("DATABASE_URL").replace(
+    "postgresql://", "postgresql+asyncpg://"
+)
 
 # Database Setup
 engine = create_async_engine(DATABASE_URL, echo=False)
@@ -123,7 +127,7 @@ def get_password_hash(password: str) -> str:
     if len(pw_bytes) > 72:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password too long. Must be at most 72 bytes when UTF-8 encoded."
+            detail="Password too long. Must be at most 72 bytes when UTF-8 encoded.",
         )
     return pwd_context.hash(password)
 
@@ -148,14 +152,12 @@ def decode_token(token: str) -> TokenData:
         username: str = payload.get("username")
         if user_id is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
             )
         return TokenData(user_id=user_id, username=username)
     except JWTError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
 
 
@@ -170,20 +172,20 @@ async def root():
 async def register(user: UserRegister, db: AsyncSession = Depends(get_db)):
     """Register a new user"""
     # Check if user already exists
-    query = select(User).where(or_(User.email == user.email, User.username == user.username))
+    query = select(User).where(
+        or_(User.email == user.email, User.username == user.username)
+    )
     result = await db.execute(query)
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email or username already exists"
+            detail="User with this email or username already exists",
         )
 
     # Create user
     hashed_password = get_password_hash(user.password)
     new_user = User(
-        username=user.username,
-        email=user.email,
-        password_hash=hashed_password
+        username=user.username, email=user.email, password_hash=hashed_password
     )
     db.add(new_user)
     await db.commit()
@@ -202,20 +204,17 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
 
     if not db_user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
 
     if not db_user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive"
         )
 
     if not verify_password(user.password, db_user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
 
     # Create access token
@@ -227,12 +226,15 @@ async def login(user: UserLogin, db: AsyncSession = Depends(get_db)):
         access_token=access_token,
         token_type="bearer",
         user_id=db_user.id,
-        username=db_user.username
+        username=db_user.username,
     )
 
 
 @app.post("/verify")
-async def verify_token_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security), db: AsyncSession = Depends(get_db)):
+async def verify_token_endpoint(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
     """Verify JWT token and return user data"""
     token = credentials.credentials
     token_data = decode_token(token)
@@ -243,25 +245,23 @@ async def verify_token_endpoint(credentials: HTTPAuthorizationCredentials = Depe
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
 
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is inactive"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account is inactive"
         )
 
-    return {
-        "user_id": user.id,
-        "username": user.username,
-        "email": user.email
-    }
+    return {"user_id": user.id, "username": user.username, "email": user.email}
 
 
 @app.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(user_id: int, credentials: HTTPAuthorizationCredentials = Depends(security), db: AsyncSession = Depends(get_db)):
+async def get_user(
+    user_id: int,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
     """Get user by ID (requires authentication)"""
     # Verify token
     decode_token(credentials.credentials)
@@ -272,8 +272,7 @@ async def get_user(user_id: int, credentials: HTTPAuthorizationCredentials = Dep
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     return user
@@ -281,4 +280,5 @@ async def get_user(user_id: int, credentials: HTTPAuthorizationCredentials = Dep
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8003)
