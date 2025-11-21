@@ -1,0 +1,104 @@
+databases:
+  - name: shortify-db
+    plan: free
+    postgresMajorVersion: "15"
+    databaseName: shortify_db
+    user: shortify_user
+    region: singapore
+    diskSizeGB: 1
+
+services:
+  # Redis replacement: Render Key Value (Redis-compatible)
+  - name: shortify-redis
+    type: keyvalue
+    plan: free
+    region: singapore
+    ipAllowList: []        # Only internal connections from your services
+    maxmemoryPolicy: allkeys-lru
+
+  # ---------- Backend microservices (private) ----------
+
+  - name: shortify-auth-service
+    type: pserv
+    runtime: docker
+    plan: starter          # private services can't be on free plan:contentReference[oaicite:2]{index=2}
+    region: singapore
+    dockerfilePath: ./services/auth-service/Dockerfile
+    dockerContext: ./services/auth-service
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shortify-db
+          property: connectionString   # Render fills this automatically:contentReference[oaicite:3]{index=3}
+      - key: REDIS_URL
+        sync: false                    # you'll set the Redis URL in the dashboard
+      - key: JWT_SECRET_KEY
+        sync: false                    # secret: set in dashboard
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+
+  - name: shortify-url-service
+    type: pserv
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./services/url-service/Dockerfile
+    dockerContext: ./services/url-service
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shortify-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+
+  - name: shortify-analytics-service
+    type: pserv
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./services/analytics-service/Dockerfile
+    dockerContext: ./services/analytics-service
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shortify-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+
+  # ---------- API Gateway (public) ----------
+
+  - name: shortify-api-gateway
+    type: web
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./services/api-gateway/Dockerfile
+    dockerContext: ./services/api-gateway
+    envVars:
+      # These will be set to internal URLs of the private services after first deploy
+      - key: AUTH_SERVICE_URL
+        sync: false
+      - key: URL_SERVICE_URL
+        sync: false
+      - key: ANALYTICS_SERVICE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+
+  # ---------- Frontend (public) ----------
+
+  - name: shortify-frontend
+    type: web
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    envVars:
+      # Will point to the public API gateway URL
+      - key: VITE_API_URL
+        sync: false
