@@ -1,0 +1,16 @@
+# Main project requirements (for development)
+# Individual services have their own requirements.txt
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2
+
+# Code quality
+black==23.12.1
+flake8==6.1.0
+isort==5.13.2
+
+# Development tools
+python-dotenv==1.0.0

@@ -1,0 +1,69 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup deployment notification
+        run: |
+          echo "Deploying Shortify to production..."
+          echo "Commit: ${{ github.sha }}"
+          echo "Author: ${{ github.actor }}"
+
+      # This is a placeholder for actual deployment
+      # In a real scenario, you would:
+      # 1. SSH into your server
+      # 2. Pull the latest Docker images
+      # 3. Run docker-compose up with the new images
+      # 4. Run health checks
+      # 5. Rollback if necessary
+
+      - name: Deployment Instructions
+        run: |
+          cat << 'EOF'
+
+          📦 DEPLOYMENT INSTRUCTIONS
+
+          To deploy to your server, run these commands:
+
+          1. SSH into your server:
+             ssh user@your-server.com
+
+          2. Navigate to project directory:
+             cd /path/to/shortify
+
+          3. Pull latest changes:
+             git pull origin main
+
+          4. Set up environment:
+             cp .env.example .env
+             # Edit .env with production values
+
+          5. Build and start services:
+             docker-compose -f docker-compose.prod.yml build
+             docker-compose -f docker-compose.prod.yml up -d
+
+          6. Check service health:
+             docker-compose -f docker-compose.prod.yml ps
+             curl http://localhost:8000/health
+
+          7. View logs:
+             docker-compose -f docker-compose.prod.yml logs -f
+
+          EOF
+
+      - name: Deploy notification success
+        if: success()
+        run: |
+          echo "✅ Deployment workflow completed successfully"
+          echo "Next steps: Follow the deployment instructions above"
