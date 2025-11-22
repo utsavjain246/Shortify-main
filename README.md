@@ -1,6 +1,6 @@
 # 🔗 Shortify - Modern URL Shortener
 
-> **⚠️ NEW ARCHITECTURE**: This project has been completely rebuilt with microservices! No longer uses Flask. See [QUICKSTART.md](QUICKSTART.md) for setup.
+> **NEW ARCHITECTURE**: This project has been completely rebuilt with microservices! No longer uses Flask. See [QUICKSTART.md](QUICKSTART.md) for setup.
 
 A production-ready URL shortener built with microservices architecture, featuring real-time analytics, QR code generation, and a beautiful minimalistic UI.
 
@@ -397,33 +397,6 @@ Contributions are welcome! Please follow these steps:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-### Development Guidelines
-- Follow PEP 8 for Python code
-- Use ESLint for JavaScript/React
-- Write tests for new features
-- Update documentation
-- Keep commits atomic and well-described
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Authors
-
-- **Your Name** - [GitHub](https://github.com/yourusername)
-
-## 🙏 Acknowledgments
-
-- FastAPI for the amazing web framework
-- React team for the frontend library
-- Tailwind CSS for the styling framework
-- PostgreSQL and Redis teams
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/Shortify/issues)
-- **Email**: support@yourdomain.com
-- **Documentation**: [docs/](docs/)
 
 ## 🗺️ Roadmap
 
